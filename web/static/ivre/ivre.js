@@ -46,7 +46,7 @@ var parametersprotected = [];
 var parametersobj = {};
 var parametersobjunalias = {};
 var clicktimeout = null;
-var wanted_portscripts, wanted_hostscripts, wanted_hops;
+var wanted_scripts, wanted_hops;
 // the initial prev_query has to be an object and to be different than
 // any valid query
 var prev_query = {"thiswillneverexist": []};
@@ -106,6 +106,10 @@ function hostnames_links(host) {
 }
 
 function port_summary(host, width) {
+    /*
+      This function prepares the host with a summary for ports, and
+      creates the hostscripts section.
+     */
     var result = [], status;
     if(width === undefined)
 	width = 4;
@@ -121,14 +125,19 @@ function port_summary(host, width) {
 	var ports = {};
 	for(var i in host.ports) {
 	    var port = host.ports[i];
-	    if(port.state_state in ports)
-		ports[port.state_state].push({
-		    'protocol': port.protocol,
-		    'port': port.port
-		});
-	    else
-		ports[port.state_state] = [{'protocol': port.protocol,
-					       'port': port.port}];
+	    if(port.port == "host") {
+		host.scripts = port.scripts;
+	    }
+	    else {
+		if(port.state_state in ports)
+		    ports[port.state_state].push({
+			'protocol': port.protocol,
+			'port': port.port
+		    });
+		else
+		    ports[port.state_state] = [{'protocol': port.protocol,
+						'port': port.port}];
+	    }
 	}
 	for(status in ports) {
 	    result.push({"type": "ports", "status": status,
@@ -142,30 +151,8 @@ function port_summary(host, width) {
 /******* Main function *********/
 
 function load() {
-    parse_params();
-    if(getparam('skip') == config.dflt.skip) {
-	unsetparam('skip');
+    if (!(load_params()))
 	return;
-    }
-    if(getparam('limit') == config.dflt.limit) {
-	unsetparam('limit');
-	return;
-    }
-
-    clear_filters();
-
-    var ii = 0;
-    for(var i in parametersprotected) {
-	if (! (parametersprotected[i].substr(0,5) === "skip:" ||
-	       parametersprotected[i].substr(0,6) === "limit:")) {
-	    add_filter({
-		"id": ii,
-		"value": parametersprotected[i],
-	    });
-	    ii += 1;
-	}
-    }
-
     var need_update = ! compare_params(parametersobjunalias,
 				       prev_query,
 				       false);

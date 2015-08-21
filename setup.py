@@ -1,4 +1,4 @@
-#! /usr/bin/env python2
+#! /usr/bin/env python
 
 # This file is part of IVRE.
 # Copyright 2011 - 2015 Pierre LALET <pierre.lalet@cea.fr>
@@ -26,9 +26,8 @@ $ python setup.py build
 # python setup.py install
 """
 
-from setuptools import setup
-from os import listdir
-from os import path
+from distutils.core import setup
+import os
 
 setup(
     name='ivre',
@@ -66,12 +65,14 @@ setup(
           'docker/web-apache/doku-conf-local.php']),
         ('share/ivre/web/static',
          ['web/static/index.html',
+          'web/static/report.html',
           'web/static/help.js',
           'web/static/config-sample.js',
           'web/static/favicon-loading.gif',
           'web/static/favicon.png',
           'web/static/loading.gif',
           'web/static/logo.png',
+          'web/static/droids.png',
           'web/static/world-110m.json']),
         ('share/ivre/web/static/templates',
          ['web/static/templates/filters.html',
@@ -82,10 +83,12 @@ setup(
           'web/static/templates/view-hosts.html',
           'web/static/templates/view-screenshots-only.html',
           'web/static/templates/view-scripts-only.html',
+          'web/static/templates/subview-cpes.html',
           'web/static/templates/subview-host-summary.html',
           'web/static/templates/subview-port-summary.html',
           'web/static/templates/subview-ports-summary.html',
-          'web/static/templates/subview-service-summary.html']),
+          'web/static/templates/subview-service-summary.html',
+          'web/static/templates/topvalues.html']),
         # IVRE
         ('share/ivre/web/static/ivre',
          ['web/static/ivre/ivre.css',
@@ -118,8 +121,8 @@ setup(
         ('share/ivre/web/static/fi/css',
          ['web/static/fi/css/flag-icon.css']),
         ('share/ivre/web/static/fi/flags/4x3',
-         [path.join('web/static/fi/flags/4x3/', x)
-          for x in listdir('web/static/fi/flags/4x3/')]),
+         [os.path.join('web/static/fi/flags/4x3/', x)
+          for x in os.listdir('web/static/fi/flags/4x3/')]),
         # Dokuwiki
         ('share/ivre/dokuwiki',
          ['web/dokuwiki/backlinks.patch']),
@@ -137,8 +140,8 @@ setup(
         ('share/ivre/dokuwiki/media',
          ['web/dokuwiki/media/logo.png']),
         ('share/ivre/dokuwiki/media/doc/screenshots',
-         [path.join('doc/screenshots', x)
-          for x in listdir('doc/screenshots')]),
+         [os.path.join('doc/screenshots', x)
+          for x in os.listdir('doc/screenshots')]),
         ('share/ivre/web/cgi-bin',
          ['web/cgi-bin/scanjson.py']),
         ('share/doc/ivre',

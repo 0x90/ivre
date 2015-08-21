@@ -19,37 +19,49 @@
 /************* Help methods ****************/
 
 function prepare(help) {
+    var key;
     // Apply aliases
-    for (var key in help.aliases) {
+    for (key in help.aliases) {
 	help.content[key] = help.content[help.aliases[key]];
     }
 
     // Manage negation
-    for (var key in help.content) {
+    for (key in help.content) {
 	if(help.content[key].title.substr(0, 10) === '<b>(!)</b>') {
 	    help.content["!" + key] = help.content[key];
 	    help.content["-" + key] = help.content[key];
 	}
     }
-};
+
+    // Manage optional parameters
+    for (var key in help.content) {
+	if(help.content[key].title.indexOf("<b>(:") !== -1) {
+	    help.content[key + ":"] = help.content[key];
+	}
+    }
+}
 
 /************* Help content ****************/
 
 var HELP_FILTERS = {
     config: {
-	"prefixs": "!-",
-	"suffixs": ":/",
+	"prefixes": "!-",
+	"suffixes": ":/",
     },
     callbacks: [
 	function(elt, HELP, ToolTip) {
 	    // Handle IP addresses
 	    if(elt.value.match(/^[!-]?[0-9\.\/\,]*$/)) {
-		if(elt.value.indexOf('/') !== -1)
+		var content;
+		if(elt.value.indexOf('/') !== -1) {
 		    content = HELP.content["net:"];
-		else if(elt.value.indexOf('.') !== -1)
+		}
+		else if(elt.value.indexOf('.') !== -1) {
 		    content = HELP.content["host:"];
-		else
+		}
+		else {
 		    content = HELP.content["tcp/"];
+		}
 		ToolTip.set(elt, content);
 		return false;
 	    } else {
@@ -58,7 +70,6 @@ var HELP_FILTERS = {
 	},
     ],
     aliases: {
-	"portscript:": "script:",
 	"yp": "nis",
 	"devicetype:": "devtype:",
 	"networkdevice": "netdev",
@@ -68,6 +79,10 @@ var HELP_FILTERS = {
 	"archives": {
 	    "title": "<b>(!)</b>archives",
 	    "content": "Look for archived results. <code>!archives</code> has no effect, since it is the default behavior.",
+	},
+	"id:": {
+	    "title": "<b>(!)</b>id:<b>[object ID](,[object ID](,...))</b>",
+	    "content": "Look for results with a specific ObjectID.",
 	},
 	"host:": {
 	    "title": "<b>(!)[IP address]</b> or <b>(!)</b>host:<b>[IP address]</b>",
@@ -123,11 +138,7 @@ var HELP_FILTERS = {
 	},
 	"service:": {
 	    "title": "service:<b>[service name](:[port number])</b>",
-	    "content": "Look for a particular service, optionally on the specified port. [service name] can be either a string or a regular expression.<br>See also <code>probedservice:</code>.",
-	},
-	"probedservice:": {
-	    "title": "probedservice:<b>[service name](:[port number])</b>",
-	    "content": "Look for a particular service, discovered with a service probe, optionally on the specified port. [service name] can be either a string or a regular expression.",
+	    "content": "Look for a particular service, optionally on the specified port. [service name] can be either a string or a regular expression.",
 	},
 	"product:": {
 	    "title": "product:<b>[service name]:[product name](:[port number])</b>",
@@ -138,12 +149,8 @@ var HELP_FILTERS = {
 	    "content": "Look for a particular service, product and version, optionally on the specified port. [service name], [product name] and [version] can be either strings or regular expressions.",
 	},
 	"script:": {
-	    "title": "script:<b>[script id](:[script output])</b> or portscript:<b>[script id](:[script output])</b>",
+	    "title": "script:<b>[script id](:[script output])</b>",
 	    "content": "Look for a port script, given its id, and optionally for a specific output. Both [script id] and [script output] can be either strings or regular expressions.",
-	},
-	"hostscript:": {
-	    "title": "hostscript:<b>[script id](:[script output])</b>",
-	    "content": "Look for a host script, given its id, and optionally for a specific output. Both [script id] and [script output] can be either strings or regular expressions.",
 	},
 	/* results of scripts or version scans */
 	"anonftp": {
@@ -170,8 +177,8 @@ var HELP_FILTERS = {
 	    "title": "cookie:<b>[name]</b>",
 	    "content": "Look for HTTP servers setting a specific cookie.",
 	},
-	"file:": {
-	    "title": "file:<b>[pattern or regexp]</b>",
+	"file": {
+	    "title": "file<b>(:([scrtipt id](,[script id](,...)):)[pattern or regexp])</b>",
 	    "content": "Look for a pattern in the shared files (FTP, SMB, ...).",
 	},
 	"geovision": {
@@ -391,32 +398,84 @@ prepare(HELP_FILTERS);
 
 /* Top values */
 
-HELP_TOPVALUES = {
+var HELP_TOPVALUES = {
     config: {
-	"prefixs": "!-",
-	"suffixs": "",
+	"prefixes": "!-",
+	"suffixes": ":",
     },
     callbacks: [],
+    aliases: {
+	"cpe": "cpe.version",
+	"file": "file.filename",
+    },
     content: {
 	"cpe.type": {
-	    "content": "cpe.type",
-	    "title": "<b>(!)</b>cpe.type"
+	    "title": "<b>(!)</b>cpe.type<b>(:[type](:[vendor])(:[product](:[version])))</b>",
+	    "content": "CPE types (matching optional type / vendor / product / version filter).",
 	},
-	"probedservice": {
-	    "content": "probedservice",
-	    "title": "<b>(!)</b>probedservice"
-	},
-	"smb.forest": {
-	    "content": "smb.forest",
-	    "title": "<b>(!)</b>smb.forest"
+	"cpe.vendor": {
+	    "title": "<b>(!)</b>cpe.vendor<b>(:[type](:[vendor])(:[product](:[version])))</b>",
+	    "content": "CPE vendors (matching optional type / vendor / product / version filter).",
 	},
 	"cpe.product": {
-	    "content": "cpe.product",
-	    "title": "<b>(!)</b>cpe.product"
+	    "title": "<b>(!)</b>cpe.product<b>(:[type](:[vendor])(:[product](:[version])))</b>",
+	    "content": "CPE products (matching optional type / vendor / product / version filter).",
 	},
-	"domains:": {
-	    "content": "domains:",
-	    "title": "<b>(!)</b>domains:"
+	"cpe.version": {
+	    "title": "<b>(!)</b>cpe.version<b>(:[type](:[vendor])(:[product](:[version])))</b> or <b>(!)</b>cpe<b>(:[...])",
+	    "content": "CPE versions (matching optional type / vendor / product / version filter).",
+	},
+	"smb.dnsdomain": {
+	    "title": "<b>(!)</b>smb.dnsdomain",
+	    "content": "SMB domains (DNS).",
+	},
+	"smb.domain": {
+	    "title": "<b>(!)</b>smb.domain",
+	    "content": "SMB domains.",
+	},
+	"smb.forest": {
+	    "title": "<b>(!)</b>smb.forest",
+	    "content": "SMB forests.",
+	},
+	"smb.workgroup": {
+	    "title": "<b>(!)</b>smb.workgroup",
+	    "content": "SMB workgroups.",
+	},
+	"smb.lanmanager": {
+	    "title": "<b>(!)</b>smb.lanmanager",
+	    "content": "SMB LAN Manager versions.",
+	},
+	"smb.os": {
+	    "title": "<b>(!)</b>smb.os",
+	    "content": "OS versions according to the SMB service.",
+	},
+	"domains": {
+	    "title": "<b>(!)</b>domains<b>(:[level])</b>:",
+	    "content": "DNS domains (optionally limited to the specified level).",
+	},
+	"file.filename": {
+	    "title": "<b>(!)</b>file<b>(:[script id](,[script id](,[...])))</b> or <b>(!)</b>file.filename<b>([...])</b>",
+	    "content": "Filenames from shared folders (AFP, SMB, NFS)."
+	},
+	"file.time": {
+	    "title": "<b>(!)</b>file.time<b>(:[script id](,[script id](,[...])))</b>",
+	    "content": "Timestamps from shared folders (AFP, SMB, NFS)."
+	},
+	"file.size": {
+	    "title": "<b>(!)</b>file.size<b>(:[script id](,[script id](,[...])))</b>",
+	    "content": "File sizes from shared folders (AFP, SMB, NFS)."
+	},
+	"file.uid": {
+	    "title": "<b>(!)</b>file.uid<b>(:[script id](,[script id](,[...])))</b>",
+	    "content": "File owners UID from shared folders (AFP, SMB, NFS)."
+	},
+	"file.gid": {
+	    "title": "<b>(!)</b>file.gid<b>(:[script id](,[script id](,[...])))</b>",
+	    "content": "File owners GID from shared folders (AFP, SMB, NFS)."
+	},
+	"file.permission": {
+	    "title": "<b>(!)</b>file.permission<b>(:[script id](,[script id](,[...])))</b>",
+	    "content": "File permissions from shared folders (AFP, SMB, NFS)."
 	},
 	"portlist:open": {
 	    "content": "portlist:open",
@@ -430,17 +489,9 @@ HELP_TOPVALUES = {
 	    "content": "as",
 	    "title": "<b>(!)</b>as"
 	},
-	"smb.lanmanager": {
-	    "content": "smb.lanmanager",
-	    "title": "<b>(!)</b>smb.lanmanager"
-	},
 	"modbus.deviceid": {
 	    "content": "modbus.deviceid",
 	    "title": "<b>(!)</b>modbus.deviceid"
-	},
-	"cpe.type:": {
-	    "content": "cpe.type:",
-	    "title": "<b>(!)</b>cpe.type:"
 	},
 	"enip.ip": {
 	    "content": "enip.ip",
@@ -449,10 +500,6 @@ HELP_TOPVALUES = {
 	"countports:closed": {
 	    "content": "countports:closed",
 	    "title": "<b>(!)</b>countports:closed"
-	},
-	"cpe.version": {
-	    "content": "cpe.version",
-	    "title": "<b>(!)</b>cpe.version"
 	},
 	"port": {
 	    "content": "port",
@@ -474,10 +521,6 @@ HELP_TOPVALUES = {
 	    "content": "screenwords",
 	    "title": "<b>(!)</b>screenwords"
 	},
-	"cpe.version:": {
-	    "content": "cpe.version:",
-	    "title": "<b>(!)</b>cpe.version:"
-	},
 	"service": {
 	    "content": "service",
 	    "title": "<b>(!)</b>service"
@@ -490,17 +533,9 @@ HELP_TOPVALUES = {
 	    "content": "devicetype:",
 	    "title": "<b>(!)</b>devicetype:"
 	},
-	"portscript:": {
-	    "content": "portscript:",
-	    "title": "<b>(!)</b>portscript:"
-	},
 	"version:": {
 	    "content": "version:",
 	    "title": "<b>(!)</b>version:"
-	},
-	"smb.dnsdomain": {
-	    "content": "smb.dnsdomain",
-	    "title": "<b>(!)</b>smb.dnsdomain"
 	},
 	"source": {
 	    "content": "source",
@@ -526,10 +561,6 @@ HELP_TOPVALUES = {
 	    "content": "product:",
 	    "title": "<b>(!)</b>product:"
 	},
-	"portscript": {
-	    "content": "portscript",
-	    "title": "<b>(!)</b>portscript"
-	},
 	"s7.Module": {
 	    "content": "s7.Module",
 	    "title": "<b>(!)</b>s7.Module"
@@ -541,10 +572,6 @@ HELP_TOPVALUES = {
 	"product": {
 	    "content": "product",
 	    "title": "<b>(!)</b>product"
-	},
-	"cpe.vendor": {
-	    "content": "cpe.vendor",
-	    "title": "<b>(!)</b>cpe.vendor"
 	},
 	"countports:filtered": {
 	    "content": "countports:filtered",
@@ -570,10 +597,6 @@ HELP_TOPVALUES = {
 	    "title": "<b>(!)</b>sshkey.fingerprint",
 	    "content": "Most common SSH host key fingerprints."
 	},
-	"smb.os": {
-	    "content": "smb.os",
-	    "title": "<b>(!)</b>smb.os"
-	},
 	"enip.prodcode": {
 	    "content": "enip.prodcode",
 	    "title": "<b>(!)</b>enip.prodcode"
@@ -585,18 +608,6 @@ HELP_TOPVALUES = {
 	"devicetype": {
 	    "content": "devicetype",
 	    "title": "<b>(!)</b>devicetype"
-	},
-	"probedservice:": {
-	    "content": "probedservice:",
-	    "title": "<b>(!)</b>probedservice:"
-	},
-	"hostscript:": {
-	    "content": "hostscript:",
-	    "title": "<b>(!)</b>hostscript:"
-	},
-	"cpe.vendor:": {
-	    "content": "cpe.vendor:",
-	    "title": "<b>(!)</b>cpe.vendor:"
 	},
 	"port:open": {
 	    "content": "port:open",
@@ -630,37 +641,9 @@ HELP_TOPVALUES = {
 	    "content": "country",
 	    "title": "<b>(!)</b>country"
 	},
-	"cpe": {
-	    "content": "cpe",
-	    "title": "<b>(!)</b>cpe"
-	},
-	"smb.workgroup": {
-	    "content": "smb.workgroup",
-	    "title": "<b>(!)</b>smb.workgroup"
-	},
 	"port:filtered": {
 	    "content": "port:filtered",
 	    "title": "<b>(!)</b>port:filtered"
-	},
-	"cpe:": {
-	    "content": "cpe:",
-	    "title": "<b>(!)</b>cpe:"
-	},
-	"cpe.product:": {
-	    "content": "cpe.product:",
-	    "title": "<b>(!)</b>cpe.product:"
-	},
-	"hostscript": {
-	    "content": "hostscript",
-	    "title": "<b>(!)</b>hostscript"
-	},
-	"domains": {
-	    "content": "domains",
-	    "title": "<b>(!)</b>domains"
-	},
-	"smb.domain": {
-	    "content": "smb.domain",
-	    "title": "<b>(!)</b>smb.domain"
 	},
 	"portlist:closed": {
 	    "content": "portlist:closed",

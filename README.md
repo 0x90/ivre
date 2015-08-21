@@ -1,7 +1,9 @@
 [![Build Status](https://travis-ci.org/cea-sec/ivre.svg)](https://travis-ci.org/cea-sec/ivre)
+[![Code Climate](https://codeclimate.com/github/cea-sec/ivre/badges/gpa.svg)](https://codeclimate.com/github/cea-sec/ivre)
 
 # What is it? #
 
+<img align="right" src="web/static/logo.png" alt="Logo"/>
 IVRE (Instrument de veille sur les réseaux extérieurs) or DRUNK
 (Dynamic Recon of UNKnown networks) is a network recon framework,
 including two modules for passive recon (one
@@ -20,9 +22,10 @@ Taullier".
 
 # Overview #
 
-Have a look at the **[screenshot gallery](doc/SCREENSHOTS.md)** for an
-overview of the Web interface. We have a **demonstration instance**,
-just [contact us](#contact) to get an access.
+Have a look at the [project homepage](https://ivre.rocks/), and at the
+**[screenshot gallery](doc/SCREENSHOTS.md)** for an overview of the
+Web interface. We have a **demonstration instance**, just
+[contact us](#contact) to get an access.
 
 A few
 **[blog posts](http://pierre.droids-corp.org/blog/html/tags/ivre.html)**
@@ -84,9 +87,8 @@ For both support and contribution, the
 [repository](https://github.com/cea-sec/ivre) on Github should be
 used: feel free to create a new issue or a pull request!
 
-You can also try to use the e-mail `ivre` on the domain
-`droids-corp.org`, or to join the IRC chan
-[#ivre](irc://irc.freenode.net/%23ivre) on
+You can also try to use the e-mail `dev` on the domain `ivre.rocks`,
+or to join the IRC chan [#ivre](irc://irc.freenode.net/%23ivre) on
 [Freenode](https://freenode.net/).
 
 

@@ -34,13 +34,273 @@ import os
 import re
 import json
 
+SCHEMA_VERSION = 4
+
 # Scripts that mix elem/table tags with and without key attributes,
 # which is not supported for now
 IGNORE_TABLE_ELEMS = set(['xmpp-info', 'sslv2'])
 
+ALIASES_TABLE_ELEMS = {
+    # ls unified output (ls NSE module)
+    "afp-ls": "ls",
+    "http-ls": "ls",
+    "nfs-ls": "ls",
+    "smb-ls": "ls",
+    "ftp-anon": "ls",
+}
+
+def add_ls_data(script):
+    """This function calls the appropriate `add_*_data()` function to
+    convert output from scripts that do not include a structured
+    output to a structured output similar to the one provided by the
+    "ls" NSE module.
+
+    See https://nmap.org/nsedoc/lib/ls.html
+
+    """
+    def notimplemented(script):
+        sys.stderr.write(
+            "WARNING: migration not implemented for script %(id)r\n" % script
+        )
+        raise NotImplementedError
+    return {
+        "smb-ls": add_smb_ls_data,
+        "nfs-ls": add_nfs_ls_data,
+        "afp-ls": add_afp_ls_data,
+        "ftp-anon": add_ftp_anon_data,
+        # http-ls has used the "ls" module since the beginning
+    }.get(script['id'], notimplemented)(script)
+
+def add_smb_ls_data(script):
+    """This function converts output from smb-ls that do not include a
+    structured output to a structured output similar to the one
+    provided by the "ls" NSE module.
+
+    This function is not perfect but should do the job in most
+    cases.
+
+    """
+    assert(script["id"] == "smb-ls")
+    result = {"total": {"files": 0, "bytes": 0}, "volumes": []}
+    state = 0 # outside a volume
+    cur_vol = None
+    for line in script["output"].splitlines():
+        line = line.lstrip()
+        if state == 0: # outside a volume
+            if line.startswith('Directory of '):
+                if cur_vol is not None:
+                    sys.stderr.write(
+                        "WARNING: cur_vol should be None here [got %r] "
+                        "[fname=%s]\n" % cur_vol
+                    )
+                cur_vol = {"volume": line[13:], "files": []}
+                state = 1 # listing
+            elif line:
+                sys.stderr.write(
+                    "WARNING: unexpected line [%r] outside a volume"
+                    "\n" % line
+                )
+        elif state == 1: # listing
+            if line == "Total Files Listed:":
+                state = 2 # total values
+            elif line:
+                date, time, size, fname = line.split(None, 3)
+                if size.isdigit():
+                    size = int(size)
+                    result["total"]["bytes"] += size
+                cur_vol["files"].append({"size": size, "filename": fname,
+                                         'time': "%s %s" % (date, time)})
+                result["total"]["files"] += 1
+        elif state == 2: # total values
+            if line:
+                # we do not use this data
+                pass
+            else:
+                state = 0 # outside a volume
+                result["volumes"].append(cur_vol)
+                cur_vol = None
+    if state != 0:
+        sys.stderr.write(
+            "WARNING: expected state == 0, got %r\n" % state
+        )
+    return result if result["volumes"] else None
+
+def add_nfs_ls_data(script):
+    """This function converts output from nfs-ls that do not include a
+    structured output to a structured output similar to the one
+    provided by the "ls" NSE module.
+
+    This function is not perfect but should do the job in most
+    cases.
+
+    """
+    assert(script["id"] == "nfs-ls")
+    result = {"total": {"files": 0, "bytes": 0}, "volumes": []}
+    state = 0 # outside a volume
+    cur_vol = None
+    for line in script["output"].splitlines():
+        line = line.lstrip()
+        if state == 0: # outside a volume
+            if line.startswith('NFS Export: '):
+                if cur_vol is not None:
+                    sys.stderr.write(
+                        "WARNING: cur_vol should be None here [got %r] "
+                        "[fname=%s]\n" % cur_vol
+                    )
+                cur_vol = {"volume": line[12:], "files": []}
+                state = 1 # volume info
+            # We silently discard any other lines
+        elif state == 1: # volume info
+            if line.startswith('NFS '):
+                cur_vol.setdefault('info', []).append(
+                    line[4].lower() + line[5:])
+            elif line.startswith('PERMISSION'):
+                state = 2 # listing
+            # We silently discard any other lines
+        elif state == 2: # listing
+            if line:
+                permission, uid, gid, size, time, fname = line.split(None, 5)
+                if size.isdigit():
+                    size = int(size)
+                    result["total"]["bytes"] += size
+                cur_vol["files"].append({"permission": permission,
+                                         "uid": uid, "gid": gid,
+                                         "size": size, "time": time,
+                                         "filename": fname})
+                result["total"]["files"] += 1
+            else:
+                state = 0 # outsize a volume
+                result["volumes"].append(cur_vol)
+                cur_vol = None
+    if state == 2:
+        state = 0 # outsize a volume
+        result["volumes"].append(cur_vol)
+        cur_vol = None
+    if state != 0:
+        sys.stderr.write(
+            "WARNING: expected state == 0, got %r\n" % state
+        )
+    return result if result["volumes"] else None
+
+def add_afp_ls_data(script):
+    """This function converts output from afp-ls that do not include a
+    structured output to a structured output similar to the one
+    provided by the "ls" NSE module.
+
+    This function is not perfect but should do the job in most
+    cases.
+
+    """
+    assert(script["id"] == "afp-ls")
+    result = {"total": {"files": 0, "bytes": 0}, "volumes": []}
+    state = 0 # volumes / listings
+    cur_vol = None
+    for line in script["output"].splitlines():
+        if state == 0:
+            if line.startswith('    PERMISSION'):
+                pass
+            elif line.startswith('    '):
+                if cur_vol is None:
+                    sys.stderr.write("WARNING: skip file entry outside a "
+                                     "volume [%r]\n" % line[4:])
+                else:
+                    (permission, uid, gid, size, date, time,
+                     fname) = line[4:].split(None, 6)
+                    if size.isdigit():
+                        size = int(size)
+                        result["total"]["bytes"] += size
+                    cur_vol["files"].append({"permission": permission,
+                                             "uid": uid, "gid": gid,
+                                             "size": size, "filename": fname,
+                                             'time': "%s %s" % (date, time)})
+                    result["total"]["files"] += 1
+            elif line.startswith("  ERROR: "):
+                # skip error messages, same as when running without
+                # setting ls.errors=true
+                pass
+            elif line == "  ":
+                state = 1 # end of volumes
+            elif line.startswith("  "):
+                result["volumes"].append(cur_vol)
+                cur_vol = {"volume": line[2:], "files": []}
+        elif state == 1:
+            if line.startswith("  "):
+                result.setdefault("info", []).append(line[3].lower()
+                                                     + line[4:])
+            else:
+                sys.stderr.write("WARNING: skip not understood line "
+                                 "[%r]\n" % line)
+    return result if result["volumes"] else None
+
+def add_ftp_anon_data(script):
+    """This function converts output from ftp-anon that do not include a
+    structured output to a structured output similar to the one
+    provided by the "ls" NSE module.
+
+    This function is not perfect but should do the job in most
+    cases.
+
+    Unlike the other add_*_data() functions related to the "ls" NSE
+    module, the ftp-anon is still not using the "ls" NSE module and
+    does not provide structured output. This is because the output of
+    the LIST FTP command is not standardized and is meant to be read
+    by humans.
+
+    """
+    assert(script["id"] == "ftp-anon")
+    # expressions that match lines, based on large data collection
+    subexprs = {
+        "user": '(?:[a-zA-Z0-9\\._-]+(?:\\s+[NLOPQS])?|\\\\x[0-9A-F]{2}|'
+        '\\*|\\(\\?\\))',
+        "fname": '[A-Za-z0-9%s]+' % re.escape(" ?._@[](){}~#'&$%!+\\-/,|`="),
+        "perm": '[a-zA-Z\\?-]{10}',
+        "day": '[0-3]?[0-9]',
+        "year": "[0-9]{2,4}",
+        "month": "(?:[0-1]?[0-9]|[A-Z][a-z]{2}|[A-Z]{3})",
+        "time": "[0-9]{1,2}\\:[0-9]{2}(?:\\:[0-9]{1,2})?",
+        "windate": "[0-9]{2}-[0-9]{2}-[0-9]{2,4} +[0-9]{2}:[0-9]{2}(?:[AP]M)?",
+        "vxworksdate": "[A-Z][a-z]{2}-[0-9]{2}-[0-9]{2,4}\\s+"
+        "[0-9]{2}:[0-9]{2}:[0-9]{2}",
+    }
+    subexprs["date"] = "(?:%s)" % "|".join([
+        "%(month)s\\s+%(day)s\\s+(?:%(year)s|%(time)s)" % subexprs,
+        "%(day)s\\.\\s+%(month)s\\s+%(time)s" % subexprs,
+    ])
+    exprs = re.compile("^(?:" + "|".join([
+        # unix
+        "(?P<unix_permission>%(perm)s)\\s+(?:[0-9]+\\s+)?"
+        "(?P<unix_uid>%(user)s)\\s+(?P<unix_gid>%(user)s)\\s+"
+        "(?P<unix_size>[0-9]+)\\s+(?P<unix_time>%(date)s)\\s+"
+        "(?P<unix_filename>%(fname)s)(?:\\ \\-\\>\\ "
+        "(?P<unix_linktarget>%(fname)s))?" % subexprs,
+        # windows
+        "(?P<win_time>%(windate)s)\\s+(?P<win_size>\\<DIR\\>|[0-9]+)\\s+"
+        "(?P<win_filename>%(fname)s)" % subexprs,
+        # vxworks
+        "\\s+(?P<vxw_size>[0-9]+)\\s+(?P<vxw_time>%(vxworksdate)s)\\s+"
+        "(?P<vxw_filename>%(fname)s)\\s+(?:\\<DIR\\>)?" % subexprs,
+    ]) + ")(?: \\[NSE: writeable\\])?$", re.MULTILINE)
+    result = {"total": {"files": 0, "bytes": 0}, "volumes": []}
+    cur_vol = {"volume": "/", "files": []}
+    for fileentry in exprs.finditer(script["output"]):
+        fileentry = dict([key.split('_', 1)[1], value]
+                         for key, value in fileentry.groupdict().iteritems()
+                         if value is not None)
+        size = fileentry.get("size")
+        if size is not None and size.isdigit():
+            size = int(size)
+            fileentry["size"] = size
+            result["total"]["bytes"] += size
+        result["total"]["files"] += 1
+        cur_vol["files"].append(fileentry)
+    if cur_vol["files"]:
+        result["volumes"].append(cur_vol)
+        return result
+
 ADD_TABLE_ELEMS = {
     'modbus-discover':
     re.compile('^ *DEVICE IDENTIFICATION: *(?P<deviceid>.*?) *$', re.M),
+    'ls': add_ls_data,
 }
 
 def change_smb_enum_shares(table):
@@ -60,8 +320,24 @@ def change_smb_enum_shares(table):
         result["shares"].append(value)
     return result
 
+def change_ls(table):
+    """Adapt structured data from "ls" NSE module to convert some
+    fields to integers.
+
+    """
+    if 'total' in table:
+        for field in ['files', 'bytes']:
+            if field in table['total'] and table['total'][field].isdigit():
+                table['total'][field] = int(table['total'][field])
+    for volume in table.get('volumes', []):
+        for fileentry in volume.get('files', []):
+            if 'size' in fileentry and fileentry['size'].isdigit():
+                fileentry['size'] = int(fileentry['size'])
+    return table
+
 CHANGE_TABLE_ELEMS = {
     'smb-enum-shares': change_smb_enum_shares,
+    'ls': change_ls,
 }
 
 IGNORE_SCRIPTS = {
@@ -300,7 +576,7 @@ class NmapHandler(ContentHandler):
             if self._curhost is not None:
                 sys.stderr.write("WARNING, self._curhost should be None at "
                                  "this point (got %r)\n" % self._curhost)
-            self._curhost = {"schema_version": 1}
+            self._curhost = {"schema_version": SCHEMA_VERSION}
             if self._curscan:
                 self._curhost['scanid'] = self._curscan['_id']
             for attr in attrs.keys():
@@ -312,18 +588,9 @@ class NmapHandler(ContentHandler):
                     )
         elif name == 'address' and self._curhost is not None:
             if attrs['addrtype'] != 'ipv4':
-                if 'addresses' not in self._curhost:
-                    self._curhost['addresses'] = {
-                        attrs['addrtype']: [attrs['addr']]
-                    }
-                elif attrs['addrtype'] not in self._curhost:
-                    self._curhost['addresses'].update({
-                        attrs['addrtype']: [attrs['addr']]
-                    })
-                else:
-                    addresses = self._curhost['addresses'][attrs['addrtype']]
-                    addresses.append(attrs['addr'])
-                    self._curhost['addresses'][attrs['addrtype']] = addresses
+                self._curhost.setdefault(
+                    'addresses', {}).setdefault(
+                        attrs['addrtype'], []).append(attrs['addr'])
             else:
                 try:
                     self._curhost['addr'] = utils.ip2int(attrs['addr'])
@@ -379,6 +646,9 @@ class NmapHandler(ContentHandler):
                     except utils.socket.error:
                         pass
         elif name == 'service' and self._curport is not None:
+            if attrs.get("method") == "table":
+                # discard information from nmap-services
+                return
             for attr in attrs.keys():
                 self._curport['service_%s' % attr] = attrs[attr]
             for field in ['service_conf', 'service_rpcnum',
@@ -446,10 +716,7 @@ class NmapHandler(ContentHandler):
                 'state': attrs['state'],
             }
         elif name in ['osclass', 'osmatch'] and 'os' in self._curhost:
-            if name not in self._curhost['os']:
-                self._curhost['os'][name] = [dict(attrs)]
-            else:
-                self._curhost['os'][name].append(dict(attrs))
+            self._curhost['os'].setdefault(name, []).append(dict(attrs))
         elif name == 'osfingerprint' and 'os' in self._curhost:
             self._curhost['os']['fingerprint'] = attrs['fingerprint']
         elif name == 'trace':
@@ -504,10 +771,8 @@ class NmapHandler(ContentHandler):
             self._curhost['hostnames'] = self._curhostnames
             self._curhostnames = None
         elif name == 'extraports':
-            if 'extraports' not in self._curhost:
-                self._curhost['extraports'] = self._curextraports
-            else:
-                self._curhost['extraports'].update(self._curextraports)
+            self._curhost.setdefault(
+                'extraports', {}).update(self._curextraports)
             self._curextraports = None
         elif name == 'port':
             self._curhost.setdefault('ports', []).append(self._curport)
@@ -534,7 +799,8 @@ class NmapHandler(ContentHandler):
                                      "empty, got [%r]\n" % self._curtablepath)
                 self._curtable = {}
                 return
-            infokey = self._curscript.get('id', 'infos')
+            infokey = self._curscript.get('id', None)
+            infokey = ALIASES_TABLE_ELEMS.get(infokey, infokey)
             if self._curtable:
                 if self._curtablepath:
                     sys.stderr.write("WARNING, self._curtablepath should be "
@@ -543,7 +809,7 @@ class NmapHandler(ContentHandler):
                     self._curtable = CHANGE_TABLE_ELEMS[infokey](self._curtable)
                 self._curscript[infokey] = self._curtable
                 self._curtable = {}
-            elif infokey != 'infos' and infokey in ADD_TABLE_ELEMS:
+            elif infokey in ADD_TABLE_ELEMS:
                 infos = ADD_TABLE_ELEMS[infokey]
                 if isinstance(infos, utils.REGEXP_T):
                     infos = infos.search(self._curscript.get('output', ''))
@@ -562,10 +828,7 @@ class NmapHandler(ContentHandler):
             if ignore_script(self._curscript):
                 self._curscript = None
                 return
-            if 'scripts' not in current:
-                current['scripts'] = [self._curscript]
-            else:
-                current['scripts'].append(self._curscript)
+            current.setdefault('scripts', []).append(self._curscript)
             self._curscript = None
         elif name in ['table', 'elem']:
             if self._curscript.get('id') in IGNORE_TABLE_ELEMS:
@@ -587,11 +850,15 @@ class NmapHandler(ContentHandler):
                 # stop recording characters
                 self._curdata = None
             self._curtablepath.pop()
+        elif name == 'hostscript':
+            # "fake" port element, without a "protocol" key and with the
+            # magic value "host" for the "port" key.
+            self._curhost.setdefault('ports', []).append({
+                "port": "host",
+                "scripts": self._curhost.pop('scripts')
+            })
         elif name == 'trace':
-            if 'traces' not in self._curhost:
-                self._curhost['traces'] = [self._curtrace]
-            else:
-                self._curhost['traces'].append(self._curtrace)
+            self._curhost.setdefault('traces', []).append(self._curtrace)
             self._curtrace = None
         elif name == 'cpe':
             self._add_cpe_to_host()

@@ -183,10 +183,7 @@ function create_wanted_scripts() {
 	    }, {});
     }
 
-    wanted_portscripts = array2object(
-	getparamvalues("script", true)
-	    .concat(getparamvalues("portscript", true)));
-    wanted_hostscripts = array2object(getparamvalues("hostscript", true));
+    wanted_scripts = array2object(getparamvalues("script", true));
     wanted_hops = getparamvalues("hop")
 	.filter(function(x) {return x[0];})
 	.map(function(x) {return x[1];});
@@ -211,6 +208,7 @@ function add_param_objects(p, pp) {
     }
     else
 	b = true;
+    var aliases_ls = ['ftp-anon', 'afp-ls', 'nfs-ls', 'smb-ls', 'http-ls'];
 
     // aliases
     if (p.substr(0, 7) === "banner:")
@@ -219,15 +217,21 @@ function add_param_objects(p, pp) {
     else if (p.substr(0, 7) === "sshkey:")
 	add_param_object(parametersobjunalias, 'script',
 			 [b, 'ssh-hostkey:' + p.substr(7)]);
-    else if (p.substr(0, 5) === 'file:')
-	add_param_object(parametersobjunalias, 'script',
-			 [b, '/^(ftp-anon|afp-ls|gopher-ls|http-vlcstreamer-ls|nfs-ls|smb-ls)$/:' + p.substr(5)]);
+    else if (p.substr(0, 5) === 'file:') {
+	for (i = 0; i < aliases_ls.length; i++) {
+	    add_param_object(
+		parametersobjunalias, 'script',
+		[b, aliases_ls[i] + ':' +
+		 p.substr(5)]
+	    );
+	}
+    }
     else if (p.substr(0, 7) === 'cookie:')
 	add_param_object(parametersobjunalias, 'script',
 			 [b, 'http-headers:/Set-Cookie: ' + p.substr(7) + '=/']);
     else if (p.substr(0, 8) === 'smbshare' && (p.length === 8 ||
 					       p.substr(8, 1) === ':'))
-	add_param_object(parametersobjunalias, 'hostscript',
+	add_param_object(parametersobjunalias, 'script',
 			 [b, 'smb-enum-shares:/READ|WRITE|STYPE_DISKTREE/']);
     else if (p.substr(0, 4) === 'smb.') {
 	/*
@@ -246,37 +250,37 @@ function add_param_objects(p, pp) {
 	switch(subfield) {
 	case 'os':
 	case 'lanmanager':
-	    add_param_object(parametersobjunalias, 'hostscript',
+	    add_param_object(parametersobjunalias, 'script',
 			     [b, 'smb-os-discovery:/^(OS|OS CPE): .*$/m']);
 	    break;
 	case 'server':
 	    add_param_object(
-		parametersobjunalias, 'hostscript',
+		parametersobjunalias, 'script',
 		[b, 'smb-os-discovery:/^NetBIOS computer name: .*$/m']
 	    );
 	    break;
 	case 'workgroup':
-	    add_param_object(parametersobjunalias, 'hostscript',
+	    add_param_object(parametersobjunalias, 'script',
 			     [b, 'smb-os-discovery:/^Workgroup: .*$/m']);
 	    break;
 	case 'date':
-	    add_param_object(parametersobjunalias, 'hostscript',
+	    add_param_object(parametersobjunalias, 'script',
 			     [b, 'smb-os-discovery:/^System time: .*$/m']);
 	    break;
 	case 'domain_dns':
 	    add_param_object(
-		parametersobjunalias, 'hostscript',
+		parametersobjunalias, 'script',
 		[b, 'smb-os-discovery:/^Domain name: .*$/m']
 	    );
 	    break;
 	case 'fqdn':
 	    add_param_object(
-		parametersobjunalias, 'hostscript',
+		parametersobjunalias, 'script',
 		[b, 'smb-os-discovery:/^FQDN: .*$/m']
 	    );
 	    break;
 	default:
-	    add_param_object(parametersobjunalias, 'hostscript',
+	    add_param_object(parametersobjunalias, 'script',
 			     [b, 'smb-os-discovery']);
 	}
     }
@@ -297,8 +301,11 @@ function add_param_objects(p, pp) {
 			 [b, 'ftp-anon:/^Anonymous FTP login allowed/']);
 	break;
     case 'authhttp':
-	add_param_object(parametersobjunalias, 'script',
-			 [b, '/^http-(auth|default-accounts)$/:/HTTP server may accept|credentials found/']);
+	for (i = 0; i < 2; i++) {
+	    add_param_object(parametersobjunalias, 'script',
+			     [b, ['http-auth', 'http-default-accounts'][i] +
+			      ':/HTTP server may accept|credentials found/']);
+	}
 	break;
     case 'authbypassvnc':
 	add_param_object(parametersobjunalias, 'script',
@@ -312,21 +319,29 @@ function add_param_objects(p, pp) {
 	add_param_object(parametersobjunalias, 'script',
 			 [b, 'mysql-empty-password:/account has empty password/']);
 	break;
-    // case 'x11srv': // TODO
+    case 'x11srv':
+	add_param_object(parametersobjunalias, 'service', [b, 'X11']);
+	break;
     case 'x11open':
 	add_param_object(parametersobjunalias, 'script',
 			 [b, 'x11-access:X server access is granted']);
 	break;
     case 'xp445':
 	/* same as smb.os + tcp port 445*/
-	add_param_object(parametersobjunalias, 'hostscript',
+	add_param_object(parametersobjunalias, 'script',
 			 [b, 'smb-os-discovery:/^(OS|OS CPE): .*$/m']);
 	add_param_object(parametersobjunalias, 'tcp/445',
 			 [b, undefined]);
 	break;
     case 'webfiles':
-	add_param_object(parametersobjunalias, 'script',
-			 [b, '/^(ftp-anon|afp-ls|gopher-ls|http-vlcstreamer-ls|nfs-ls|smb-ls)$/:/vhost|www|web\.config|\.htaccess|\.([aj]sp|php|html?|js|css)/i']);
+	for (i = 0; i < aliases_ls.length; i++) {
+	    add_param_object(
+		parametersobjunalias, 'script',
+		[b, aliases_ls[i] +
+		 ':/vhost|www|web\.config|\.htaccess|' +
+		 '\.([aj]sp|php|html?|js|css)/i']
+	    );
+	}
 	break;
     case 'webmin':
 	add_param_object(parametersobjunalias, 'service', [b, 'Webmin']);
@@ -442,6 +457,33 @@ function compare_params(store, other, count) {
 		}
 	    }
 	    return false;
+	}
+    }
+    return true;
+}
+
+function load_params(){
+    parse_params();
+    if (getparam('skip') == config.dflt.skip) {
+	unsetparam('skip');
+	return false;
+    }
+    if (getparam('limit') == config.dflt.limit) {
+	unsetparam('limit');
+	return false;
+    }
+
+    clear_filters();
+
+    var ii = 0;
+    for(var i in parametersprotected) {
+	if (! (parametersprotected[i].substr(0,5) === "skip:" ||
+	       parametersprotected[i].substr(0,6) === "limit:")) {
+	    add_filter({
+		"id": ii,
+		"value": parametersprotected[i],
+	    });
+	    ii += 1;
 	}
     }
     return true;

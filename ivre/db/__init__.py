@@ -17,12 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with IVRE. If not, see <http://www.gnu.org/licenses/>.
 
-"""
-This module is part of IVRE.
-Copyright 2011 - 2015 Pierre LALET <pierre.lalet@cea.fr>
-
-This sub-module contains functions to interact with the
-database.
+"""This sub-module contains functions to interact with the
+database backends.
 """
 
 from ivre import config, utils, xmlnmap
@@ -73,8 +69,6 @@ class DB(object):
 
     """
     globaldb = None
-    schema_migrations = {}
-    schema_latest_versions = {}
 
     # filters
 
@@ -160,11 +154,11 @@ class DB(object):
         execution by finding backdoors/shells/vulnerabilities.
 
         """
-        return self.searchfile(re.compile(
+        return self.searchfile(fname=re.compile(
             'vhost|www|web\\.config|\\.htaccess|\\.([aj]sp|php|html?|js|css)',
             re.I))
 
-    def searchfile(self, fname):
+    def searchfile(self, fname=None, scripts=None):
         """Finds shared files or directories from a name or a
         pattern.
 
@@ -242,8 +236,10 @@ class DBNmap(DB):
         try:
             import argparse
             self.argparser = argparse.ArgumentParser(add_help=False)
+            USING_ARGPARSE = True
         except ImportError:
             self.argparser = utils.FakeArgparserParent()
+            USING_ARGPARSE = False
         self.argparser.add_argument(
             '--category', metavar='CAT',
             help='show only results from this category')
@@ -260,6 +256,18 @@ class DBNmap(DB):
                                     help='show only results from this source')
         self.argparser.add_argument('--version', metavar="VERSION", type=int)
         self.argparser.add_argument('--timeago', metavar='SECONDS', type=int)
+        if USING_ARGPARSE:
+            self.argparser.add_argument('--id', metavar='ID', help='show only '
+                                        'results with this(those) ID(s)',
+                                        nargs='+')
+            self.argparser.add_argument('--no-id', metavar='ID', help='show '
+                                        'only results WITHOUT this(those) '
+                                        'ID(s)', nargs='+')
+        else:
+            self.argparser.add_argument('--id', metavar='ID', help='show only '
+                                        'results with this ID')
+            self.argparser.add_argument('--no-id', metavar='ID', help='show '
+                                        'only results WITHOUT this ID')
         self.argparser.add_argument('--host', metavar='IP')
         self.argparser.add_argument('--hostname')
         self.argparser.add_argument('--domain')
@@ -278,7 +286,6 @@ class DBNmap(DB):
                                     'ports NOT within the provided range', nargs=2)
         self.argparser.add_argument('--service', metavar='SVC')
         self.argparser.add_argument('--script', metavar='ID[:OUTPUT]')
-        self.argparser.add_argument('--hostscript', metavar='SCRIPT')
         self.argparser.add_argument('--svchostname')
         self.argparser.add_argument('--os')
         self.argparser.add_argument('--anonftp', action='store_true')
@@ -604,7 +611,7 @@ class DBNmap(DB):
         raise NotImplementedError
 
     @staticmethod
-    def searchscript(host=False, name=None, output=None, values=None):
+    def searchscript(name=None, output=None, values=None):
         raise NotImplementedError
 
     @staticmethod

@@ -245,6 +245,10 @@ def flt_from_query(query):
                 limit = min(limit, config.WEB_MAXRESULTS)
         elif param == "archives":
             archive = not neg
+        elif param == "id":
+            flt = db.nmap.flt_and(flt, db.nmap.searchobjectid(
+                value.replace('-', ',').split(','),
+                neg=neg))
         elif param == "host":
             flt = db.nmap.flt_and(flt, db.nmap.searchhost(value, neg=neg))
         elif param == "net":
@@ -313,18 +317,6 @@ def flt_from_query(query):
                 flt = db.nmap.flt_and(
                     flt,
                     db.nmap.searchservice(utils.str2regexp(value)))
-        elif not neg and param == "probedservice":
-            if ':' in value:
-                req, port = value.split(':', 1)
-                port = int(port)
-                flt = db.nmap.flt_and(
-                    flt,
-                    db.nmap.searchservice(
-                        utils.str2regexp(req), port=port, probed=True))
-            else:
-                flt = db.nmap.flt_and(
-                    flt,
-                    db.nmap.searchservice(utils.str2regexp(value), probed=True))
         elif not neg and param == "product" and ":" in value:
             product = value.split(':', 2)
             if len(product) == 2:
@@ -365,7 +357,7 @@ def flt_from_query(query):
                         port=int(product[3])
                     )
                 )
-        elif not neg and param in ["script", "portscript"]:
+        elif not neg and param == "script":
             value = value.split(':', 1)
             if len(value) == 1:
                 flt = db.nmap.flt_and(
@@ -379,25 +371,6 @@ def flt_from_query(query):
                         name=utils.str2regexp(value[0]),
                         output=utils.str2regexp(value[1]),
                     ),
-                )
-        elif not neg and param == "hostscript":
-            value = value.split(':', 1)
-            if len(value) == 1:
-                flt = db.nmap.flt_and(
-                    flt,
-                    db.nmap.searchscript(
-                        host=True,
-                        name=utils.str2regexp(value[0]),
-                    ),
-                )
-            else:
-                flt = db.nmap.flt_and(
-                    flt,
-                    db.nmap.searchscript(
-                        host=True,
-                        name=utils.str2regexp(value[0]),
-                        output=utils.str2regexp(value[1]),
-                    )
                 )
         # results of scripts or version scans
         elif not neg and param == "anonftp":
@@ -415,9 +388,17 @@ def flt_from_query(query):
         elif param == 'cookie':
             flt = db.nmap.flt_and(flt, db.nmap.searchcookie(value))
         elif param == 'file':
-            flt = db.nmap.flt_and(
-                flt,
-                db.nmap.searchfile(utils.str2regexp(value)))
+            if value is None:
+                flt = db.nmap.flt_and(flt, db.nmap.searchfile())
+            else:
+                value = value.split(':', 1)
+                if len(value) == 1:
+                    flt = db.nmap.flt_and(flt, db.nmap.searchfile(
+                        fname=utils.str2regexp(value[0])))
+                else:
+                    flt = db.nmap.flt_and(flt, db.nmap.searchfile(
+                        fname=utils.str2regexp(value[1]),
+                        scripts=value[0].split(',')))
         elif not neg and param == 'geovision':
             flt = db.nmap.flt_and(flt, db.nmap.searchgeovision())
         elif param == 'httptitle':

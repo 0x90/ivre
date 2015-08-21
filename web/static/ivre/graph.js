@@ -16,13 +16,7 @@
  * along with IVRE. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/************* Graphing constants **************/
-
-MAPRATIO = 250 / 500;
-CHARTRATIO = 450 / 500;
-
 /************* Graphing utilities **************/
-
 
 function hidecharts() {
     document.getElementById('charts').style.display = "none";
@@ -41,7 +35,7 @@ function build_top_chart(f) {
     s.src = config.cgibase + '?callback=' +
 	encodeURIComponent("(function(data){build_chart('chart1', '" +
 			   field + "', data);})") +
-	'&action=topvalues:' + encodeURIComponent(field) + '&limit=15&q=' +
+	'&action=topvalues:' + encodeURIComponent(field) + ':15&q=' +
 	encodeURIComponent(query);
     c1.parentNode.appendChild(s);
 }
@@ -77,8 +71,8 @@ function heatmapColour(value) {
 }
 
 function build_chart_plane(chart, ips) {
-    var real_w = $("#" + chart).width(),
-    real_h = real_w * CHARTRATIO,
+    var real_w = 500,
+    real_h = 450,
     w = real_w - 100,
     h = real_h - 50,
     ipsint = ips.map(function(i) {
@@ -114,8 +108,8 @@ function build_chart_plane(chart, ips) {
     
     var vis = d3.select("#"+chart)
 	.append("svg:svg")
-	.attr("width", real_w)
-	.attr("height", real_h)
+	.attr("viewBox", [0, 0, real_w, real_h])
+	.attr("preserveAspectRatio", "xMidYMid meet")
 	.append("svg:g")
 	.attr("transform", "translate(40, 10)");
     
@@ -234,14 +228,27 @@ function build_chart_plane(chart, ips) {
     add_download_button(document.getElementById(chart), "AddressSpace");
 }
 
+function build_ip_map(fullworld) {
+    hideall();
+    var c1 = document.getElementById('chart1');
+    c1.innerHTML = "";
+    var s = document.getElementById('chart1script');
+    if(s) c1.parentNode.removeChild(s);
+    document.getElementById('charts').style.display = 'inline';
+    s = document.createElement('script');
+    s.id = 'chart1script';
+    s.src = config.cgibase + '?callback=' + encodeURIComponent("(function(ips){build_chart_map('chart1', ips, " + fullworld + ");})")+ '&action=coordinates&ipsasnumbers=1&q=' + encodeURIComponent(query);
+    c1.parentNode.appendChild(s);
+}
+
 function build_chart_map(chart, locs, fullworld) {
-    var w = $('#' + chart).width(),
-    h = w * MAPRATIO;
+    var w = 500,
+    h = 250;
 
     document.getElementById("chartstitle").innerHTML = "Map";
     var vis = d3.select("#"+chart).append("svg")
-	  .attr("width", w)
-	  .attr("height", h);
+	.attr("viewBox", [0, 0, w, h])
+	.attr("preserveAspectRatio", "xMidYMid meet");
 
     d3.json("world-110m.json", function(error, world) {
 	var projection =  d3.geo.mercator()
@@ -265,6 +272,9 @@ function build_chart_map(chart, locs, fullworld) {
 	    projection
 		.scale(70 * d3.min([w / Math.abs(p2[0] - p1[0]),
 				    h / Math.abs(p2[1] - p1[1])]));
+	}
+	else {
+	    projection.scale(w/7)
 	}
 
 	var path = d3.geo.path()
@@ -363,8 +373,8 @@ function build_chart_map(chart, locs, fullworld) {
 }
 
 function build_chart_timeline(chart, ips) {
-    var real_w = $("#" + chart).width(),
-    real_h = real_w * CHARTRATIO,
+    var real_w = 500,
+    real_h = 450,
     w = real_w - 100,
     h = real_h - 50,
     xmin = d3.min(ips, function(i) {return i[0];}),
@@ -403,8 +413,8 @@ function build_chart_timeline(chart, ips) {
     
     var vis = d3.select("#"+chart)
 	.append("svg:svg")
-	.attr("width", real_w)
-	.attr("height", real_h)
+	.attr("viewBox", [0, 0, real_w, real_h])
+	.attr("preserveAspectRatio", "xMidYMid meet")
 	.append("svg:g")
 	.attr("transform", "translate(70, 10)");
 
@@ -508,10 +518,10 @@ function build_chart_timeline(chart, ips) {
 }
 
 function build_chart_ports(chart, ips) {
-    var real_w = $("#" + chart).width(),
-    real_h = real_w * CHARTRATIO,
+    var real_w = 500,
+    real_h = 450,
     w = real_w - 100,
-    h = real_h - 50,
+    h = real_h - 60,
     xmin = d3.min(ips, function(i) {return i[0];}),
     xmax = d3.max(ips, function(i) {return i[0];}),
     x = d3.scale.linear()
@@ -533,8 +543,8 @@ function build_chart_ports(chart, ips) {
 
     var vis = d3.select("#"+chart)
 	.append("svg:svg")
-	.attr("width", real_w)
-	.attr("height", real_h)
+	.attr("viewBox", [0, 0, real_w, real_h])
+	.attr("preserveAspectRatio", "xMidYMid meet")
 	.append("svg:g")
 	.attr("transform", "translate(70, 10)");
 
@@ -642,8 +652,15 @@ function build_chart_ports(chart, ips) {
     add_download_button(document.getElementById(chart), "IPsPorts");
 }
 
-function build_chart(chart, field, dataset) {
-    var w = $("#" + chart).width() - 20,
+function build_chart(chart, field, dataset, size, colors) {
+
+    if (size === undefined)
+	size = 5;
+
+    if (colors === undefined)
+	colors = [ "steelblue", "lightblue" ];
+
+    var w = 100 * size,
     h = 30 * dataset.length,
     //labelpad = 60,
     labelpad = 10 + d3.max(dataset, function(t) {
@@ -663,7 +680,7 @@ function build_chart(chart, field, dataset) {
 	.domain(d3.range(data.length))
 	.rangeBands([0, h], 0.2),
     //color = [ "grey", "lightgrey" ];
-    color = [ "steelblue", "lightblue" ],
+    color = colors,
     prepareoutput = function(x) {return x;},
     preparefilter = undefined,
     preparetitle = undefined,
@@ -775,14 +792,9 @@ function build_chart(chart, field, dataset) {
 	    return 'setparam("source", "' + x + '", true);';
 	};
     }
-    else if(field === 'script' || field === 'portscript') {
+    else if(field === 'script') {
 	preparefilter = function(x) {
 	    return 'setparam("script", "' + x + '");';
-	};
-    }
-    else if(field === 'hostscript') {
-	preparefilter = function(x) {
-	    return 'setparam("hostscript", "' + x + '");';
 	};
     }
     else if(field.substr(0, 5) === 'port:') {
@@ -815,17 +827,6 @@ function build_chart(chart, field, dataset) {
     else if(field.substr(0, 8) === 'service:') {
 	preparefilter = function(x) {
 	    return 'setparam("service", "' + x + ':' + field.substr(8) + '");';
-	};
-    }
-    else if(field === 'probedservice') {
-	preparefilter = function(x) {
-	    return 'setparam("probedservice", "' + x + '");';
-	};
-    }
-    else if(field.substr(0, 14) === 'probedservice:') {
-	preparefilter = function(x) {
-	    return 'setparam("probedservice", "' + x + ':' +
-		field.substr(14) + '");';
 	};
     }
     else if(field.substr(0, 7) === 'product') {
@@ -898,8 +899,8 @@ function build_chart(chart, field, dataset) {
     
     var vis = d3.select("#"+chart)
 	.append("svg:svg")
-	.attr("width", w + 40)
-	.attr("height", h + 20)
+	.attr("viewBox", [0, 0, w + 20, h + 20])
+	.attr("preserveAspectRatio", "xMidYMid meet")
 	.append("svg:g");
     
     var bars = vis.selectAll("g.bar")
@@ -943,7 +944,7 @@ function build_chart(chart, field, dataset) {
     
     bars.append("svg:text")
 	.attr("x", function(d, i) {
-	    return x(d, i) + (x(d, i) < (w-10)/2 ? 10 : -10);
+	    return x(d, i) + (x(d, i) < (w - 10) / 2 ? 10 : -10);
 	})
 	.attr("fill", function(d, i) {
 	    return x(d, i) < (w - 10) / 2 ? colorFg : colorBg;

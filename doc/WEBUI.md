@@ -50,8 +50,7 @@ displayed in the rightmost part of the screen.
     - `hop`, `hop:[number]`
     - `port`, `port:[open/closed/filtered]`, `port:[service]`
       `portlist:[open/closed/filtered]`
-    - `service`, `service:[port]`, `probedservice`,
-      `probedservice:[port]`, `product`, `product:[port]`,
+    - `service`, `service:[port]`, `product`, `product:[port]`,
       `version`, `version:[port]`
     - `cpe`, `cpe.[type/vendor/product/version]`, `cpe:[cpe spec]`,
       `cpe.[type/vendor/product/version]:[cpe spec]` (examples:
@@ -59,9 +58,10 @@ displayed in the rightmost part of the screen.
       from vendor `microsoft`, `cpe.vendor:o:/^m/` will show top
       vendor names in CPEs that start with an `m`)
     - `devicetype`, `devicetype:[port]`
-    - `script`, `portscript` (like `script`), `hostscript`
-    - `script:[scriptname]`, `portscript:[scriptname]` (like `script:`),
-      `hostscript:[scriptname]`
+    - `script`
+    - `script:[scriptname]`
+    - `file` (or `file.filename`), `file.time`, `file.size`,
+      `file.uid`, `file.gid`, `file.permission`
     - `smb.os`, `smb.lanmanager`, `smb.domain`, `smb.dnsdomain`,
       `smb.forest`, `smb.workgroup`
     - `cert.issuer`, `cert.subject`
@@ -110,7 +110,7 @@ parameter.
 When a parameter is required the full value must be specified, or when
 appropriate, a regular expression can be used, with the
 `/[expression]/[flags]` syntax (e.g.:
-`hostscript:smb-enum-shares:/WRITE/`).
+`script:smb-enum-shares:/WRITE/`).
 
 If your command includes spaces, you need to protect it by using
 single or double quotes.
@@ -144,18 +144,13 @@ single or double quotes.
     (`m`), hours (`h`), days (`d`) or years (`y`).
   - `service:[expression]`, `service:[expression]:[port number]` look
     for an expression in the name of a service.
-  - `probedservice:[expression]`,
-    `probedservice:[expression]:[port number]` look for an expression
-    in the name of a service discovered with a service probe.
   - `product:[service]:[product]`,
     `product:[service]:[product]:[port number]` look for a product.
   - `version:[service]:[product]:[version]`,
     `product:[service]:[product]:[version]:[port number]` look for a
     specific version of a product.
   - `script:[scriptid]`, `script:[scriptid]:[output]` look for a
-    specific (port) script (using `portscript:` is equivalent).
-  - `hostscript:[scriptid]`, `hostscript:[scriptid]:[output]` look for
-    a specific host script.
+    specific script.
   - `anonftp` filter results with anonymous FTP allowed.
   - `anonldap` look for LDAP servers with anonymous bind working.
   - `authbypassvnc` look for VNC servers with authentication that can
@@ -165,7 +160,9 @@ single or double quotes.
     seems to get a lot a false positives.
   - `banner:` look for a specific banner of a service.
   - `cookie:` look for HTTP servers setting a specific cookie.
-  - `file:` look for a pattern in the shared files (FTP, SMB, ...).
+  - `file`, `file:[pattern]`, `file:[scriptid]:[pattern]`,
+    `file:[scriptid],[scriptid],...:[pattern]` look for a pattern in
+    the shared files (FTP, SMB, ...).
   - `geovision` look for GeoVision web-cams.
   - `httptitle:` look for a specific HTML title value of the homepage
     of a web site.
@@ -191,6 +188,9 @@ single or double quotes.
     specific host name (NetBIOS).
   - `smb.workgroup:[NetBIOS]` search results with SMB service in a
     specific workgroup (NetBIOS).
+  - `smbshare`, `smbshare:[access mode]` search results with SMB
+    shares with anonymous access. Access can be 'r', 'w' or 'rw'
+    (default is read or write).
   - `sshkey:` look for a particular SSH key.
   - `torcert` look for Tor certificates.
   - `webfiles` look for "typical" web files in the shared folders.
@@ -204,8 +204,8 @@ single or double quotes.
     routers, ...).
   - `phonedev` look for telephony devices.
   - `cpe(:[type](:[vendor](:[product](:[version]))))` look for a given cpe. Each field can be a /regex/.
-  - `[!]hop:` look for a particular IP address in the traceroute
-    results.
+  - `[!]hop:[IP]`, `[!]hop:[IP]:[TTL]` look for a particular IP
+    address in the traceroute results.
   - `[!]hopname:` look for a matching hostname in the traceroute
     results.
   - `[!]hopdomain:` look for a hostname within a matching domain name
@@ -214,6 +214,9 @@ single or double quotes.
     TCP or UDP port (using `[!][port number]` directly is equivalent
     to `[!]tcp/[port number]`).
   - `[!]openport` look for hosts with at least one open port.
+  - `otheropenport:[port number]`,
+    `otheropenport:[port number],[port number],...` look for hosts
+    with at least one open port other than those specified.
   - `notes` search results with an associated note.
 
 ### Sort ###
@@ -228,8 +231,9 @@ single or double quotes.
 
   - `display:host` set the default display mode.
   - `display:cpe` only display CPEs.
-  - `display:script:[scriptid]` only display a particular script
-    output.
+  - `display:script:`, `display:script:[script id]` or
+    `display:script:[script id],[script id],...` only display (a
+    particular) script outputs.
   - `display:screenshot` only display screenshots.
 
 
